@@ -49,7 +49,7 @@ jobs:
         include:
           - runner: macos-latest
             arch: arm64
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x64
     runs-on: ${{ matrix.runner }}
     env:
@@ -137,10 +137,12 @@ jobs:
         run: uv run pyinstaller packaging/pyinstaller/webtunes-importer.spec --noconfirm
 
       - name: Install nfpm
+        env:
+          NFPM_VERSION: "2.47.0"
         run: |
-          url=$(curl -s https://api.github.com/repos/goreleaser/nfpm/releases/latest \
-            | grep browser_download_url | grep Linux_x86_64.tar.gz | cut -d '"' -f4)
-          curl -sfL "$url" | tar xz nfpm
+          # pinned direct download: unauthenticated api.github.com calls get
+          # rate-limited on shared runner IPs
+          curl -sfL "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz" | tar xz nfpm
           sudo mv nfpm /usr/local/bin/
 
       - name: Package .deb and .rpm
