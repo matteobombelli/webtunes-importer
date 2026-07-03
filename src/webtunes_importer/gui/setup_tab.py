@@ -291,7 +291,7 @@ class SetupTab(QWidget):
         for label, code in QUALITY_CHOICES:
             self.quality_combo.addItem(label, code)
         idx = next((i for i, (_, code) in enumerate(QUALITY_CHOICES)
-                    if code == self.config.settings.quality), 1)
+                    if code == self.config.settings.quality), 2)
         self.quality_combo.setCurrentIndex(idx)
         self.quality_combo.currentIndexChanged.connect(
             lambda i: self._set_setting("quality", self.quality_combo.itemData(i)))

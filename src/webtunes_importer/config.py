@@ -23,7 +23,7 @@ from webtunes_importer.constants import (
 @dataclass
 class Settings:
     version_pref: str = "none"  # none | studio | live
-    quality: str = "192"  # 128 | 192 | opus | m4a
+    quality: str = "opus"  # 128 | 192 | opus | m4a
     strictness: float = DEFAULT_STRICTNESS
     server_url: str = DEFAULT_SERVER_URL
 
