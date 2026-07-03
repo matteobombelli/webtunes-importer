@@ -1,0 +1,190 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+
+      - name: Fetch static ffmpeg
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-tmp
+          $exe = Get-ChildItem ffmpeg-tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $exe.FullName ffmpeg.exe
+          "FFMPEG_BINARY=$PWD\ffmpeg.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build app
+        run: uv run pyinstaller packaging/pyinstaller/webtunes-importer.spec --noconfirm
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = "${env:GITHUB_REF_NAME}".TrimStart("v")
+          iscc /DAppVersion=$version packaging\windows\installer.iss
+
+      - name: Zip portable build
+        shell: pwsh
+        run: Compress-Archive -Path dist\webtunes-importer -DestinationPath dist\WebTunes-Importer-windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/WebTunes-Importer-Setup-x64.exe
+            dist/WebTunes-Importer-windows-x64.zip
+
+  macos:
+    strategy:
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-13
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    env:
+      # Populate these repo secrets to switch on Developer ID signing +
+      # notarization; with them empty the unsigned (ad-hoc) dmg ships.
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+      MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+      MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+
+      - name: Fetch static ffmpeg
+        run: |
+          curl -sfL -o ffmpeg.gz "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-darwin-${{ matrix.arch }}.gz"
+          gunzip ffmpeg.gz
+          chmod +x ffmpeg
+          echo "FFMPEG_BINARY=$PWD/ffmpeg" >> "$GITHUB_ENV"
+
+      - name: Build app
+        run: uv run pyinstaller packaging/pyinstaller/webtunes-importer.spec --noconfirm
+
+      - name: Import Developer ID certificate
+        if: env.MACOS_CERT_P12 != ''
+        run: |
+          echo "$MACOS_CERT_P12" | base64 --decode > cert.p12
+          security create-keychain -p ci-keychain build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p ci-keychain build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci-keychain build.keychain
+
+      - name: Sign app
+        run: |
+          if [ -n "$MACOS_CERT_P12" ]; then
+            identity=$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+            codesign --force --deep --options runtime \
+              --entitlements packaging/macos/entitlements.plist \
+              -s "$identity" "dist/WebTunes Importer.app"
+          else
+            # ad-hoc signature so the unsigned build still launches via right-click -> Open
+            codesign --force --deep -s - "dist/WebTunes Importer.app"
+          fi
+
+      - name: Create dmg
+        run: |
+          hdiutil create -volname "WebTunes Importer" \
+            -srcfolder "dist/WebTunes Importer.app" \
+            -ov -format UDZO "dist/WebTunes-Importer-macOS-${{ matrix.arch }}.dmg"
+
+      - name: Notarize and staple
+        if: env.MACOS_CERT_P12 != ''
+        run: |
+          xcrun notarytool submit "dist/WebTunes-Importer-macOS-${{ matrix.arch }}.dmg" \
+            --apple-id "$MACOS_NOTARY_APPLE_ID" \
+            --team-id "$MACOS_NOTARY_TEAM_ID" \
+            --password "$MACOS_NOTARY_PASSWORD" --wait
+          xcrun stapler staple "dist/WebTunes-Importer-macOS-${{ matrix.arch }}.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/WebTunes-Importer-macOS-${{ matrix.arch }}.dmg
+
+  linux:
+    # ubuntu-22.04: oldest supported glibc so the binaries run on older distros
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+
+      - name: Build app
+        run: uv run pyinstaller packaging/pyinstaller/webtunes-importer.spec --noconfirm
+
+      - name: Install nfpm
+        run: |
+          url=$(curl -s https://api.github.com/repos/goreleaser/nfpm/releases/latest \
+            | grep browser_download_url | grep Linux_x86_64.tar.gz | cut -d '"' -f4)
+          curl -sfL "$url" | tar xz nfpm
+          sudo mv nfpm /usr/local/bin/
+
+      - name: Package .deb and .rpm
+        run: |
+          export VERSION="${GITHUB_REF_NAME#v}"
+          nfpm package -f packaging/linux/nfpm.yaml -p deb --target dist/
+          nfpm package -f packaging/linux/nfpm.yaml -p rpm --target dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            dist/*.deb
+            dist/*.rpm
+
+  arch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Template PKGBUILD
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          curl -sfL -o source.tar.gz \
+            "https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/v${VERSION}.tar.gz"
+          SHA256=$(sha256sum source.tar.gz | cut -d' ' -f1)
+          mkdir -p dist
+          sed -e "s/@VERSION@/${VERSION}/" -e "s/@SHA256@/${SHA256}/" \
+            packaging/arch/PKGBUILD > dist/PKGBUILD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch
+          path: dist/PKGBUILD
+
+  release:
+    needs: [windows, macos, linux, arch]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**
+          generate_release_notes: true

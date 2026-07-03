@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#4f46e5"/>
+  <!-- beamed eighth notes -->
+  <circle cx="176" cy="360" r="46" fill="#ffffff"/>
+  <circle cx="340" cy="328" r="46" fill="#ffffff"/>
+  <rect x="202" y="168" width="20" height="196" fill="#ffffff"/>
+  <rect x="366" y="136" width="20" height="196" fill="#ffffff"/>
+  <polygon points="202,168 386,136 386,188 202,220" fill="#ffffff"/>
+</svg>

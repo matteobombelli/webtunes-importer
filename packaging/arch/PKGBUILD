@@ -1,0 +1,28 @@
+# Maintainer: Matteo Bombelli <matteo.bombelli@gmail.com>
+# CI substitutes @VERSION@ and @SHA256@ at release time and attaches this file
+# to the GitHub release.
+pkgname=webtunes-importer
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="Import tracks from Spotify, Apple Music, or YouTube into your WebTunes library"
+arch=('any')
+url="https://github.com/matteobombelli/webtunes-importer"
+license=('MIT')
+depends=('python' 'pyside6' 'yt-dlp' 'python-requests' 'python-platformdirs' 'ffmpeg' 'deno')
+makedepends=('python-build' 'python-installer' 'python-wheel' 'python-hatchling')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('@SHA256@')
+
+build() {
+    cd "$pkgname-$pkgver"
+    python -m build --wheel --no-isolation
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    python -m installer --destdir="$pkgdir" dist/*.whl
+    install -Dm644 packaging/linux/webtunes-importer.desktop \
+        "$pkgdir/usr/share/applications/webtunes-importer.desktop"
+    install -Dm644 packaging/linux/icons/webtunes-importer.png \
+        "$pkgdir/usr/share/icons/hicolor/512x512/apps/webtunes-importer.png"
+}

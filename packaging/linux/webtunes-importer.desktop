@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=WebTunes Importer
+Comment=Import tracks from Spotify, Apple Music, or YouTube into your WebTunes library
+Exec=webtunes-importer
+Icon=webtunes-importer
+Terminal=false
+Categories=AudioVideo;Audio;Network;
+Keywords=music;playlist;import;webtunes;
