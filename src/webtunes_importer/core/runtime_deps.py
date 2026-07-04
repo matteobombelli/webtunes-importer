@@ -6,10 +6,12 @@ challenge solver - optional but strongly recommended for full YouTube format
 access - and can be downloaded on demand into the user data dir.
 """
 
+import codecs
 import hashlib
 import io
 import os
 import platform
+import re
 import shutil
 import stat
 import sys
@@ -75,6 +77,25 @@ def inject_deno_path() -> None:
         os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
 
 
+def _parse_sha256sum(raw: bytes) -> str:
+    """Extract the hex digest from a deno release .sha256sum asset.
+
+    Linux/macOS release assets are shasum output (``<hex>  <filename>``), but
+    the Windows ones are PowerShell ``Get-FileHash | Format-List`` output - an
+    ``Algorithm/Hash/Path`` property block with an uppercase digest, possibly
+    UTF-16 encoded by the ``>`` redirect. Grab the first 64-char hex token
+    whatever the surrounding format, normalized to lowercase.
+    """
+    if raw.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        text = raw.decode("utf-16")
+    else:
+        text = raw.decode("utf-8-sig", errors="replace")
+    match = re.search(r"\b[0-9a-fA-F]{64}\b", text)
+    if not match:
+        raise RuntimeError("could not parse deno checksum file")
+    return match.group(0).lower()
+
+
 def fetch_deno(on_progress: Callable[[int], None] | None = None) -> Path:
     """Download the latest official deno static binary into the user data dir.
 
@@ -102,7 +123,7 @@ def fetch_deno(on_progress: Callable[[int], None] | None = None) -> Path:
 
     sum_name = f"{asset_name}.sha256sum"
     if sum_name in assets:
-        expected = requests.get(assets[sum_name], timeout=30).text.split()[0].strip()
+        expected = _parse_sha256sum(requests.get(assets[sum_name], timeout=30).content)
         actual = hashlib.sha256(buf.getvalue()).hexdigest()
         if actual != expected:
             raise RuntimeError("deno download failed checksum verification")
