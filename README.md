@@ -60,7 +60,7 @@ uv run ruff check .        # lint
 ```
 
 To test pairing against a local WebTunes dev server, expand *WebTunes server*
-on the Setup tab and point it at `http://localhost:3000/projects/webtunes`.
+on the Setup tab and point it at `http://localhost:3000`.
 
 ### Layout
 
