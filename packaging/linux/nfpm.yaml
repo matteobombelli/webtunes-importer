@@ -7,7 +7,7 @@ section: sound
 maintainer: Matteo Bombelli <matteo.bombelli@gmail.com>
 description: |
   Import tracks from Spotify, Apple Music, or YouTube into your WebTunes library.
-homepage: https://matteob.dev/projects/webtunes
+homepage: https://webtunes.matteob.dev
 license: MIT
 contents:
   - src: ./dist/webtunes-importer

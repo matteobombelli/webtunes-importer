@@ -1,6 +1,6 @@
 # WebTunes Importer
 
-Desktop importer for [WebTunes](https://matteob.dev/projects/webtunes): paste a
+Desktop importer for [WebTunes](https://webtunes.matteob.dev): paste a
 Spotify, Apple Music, or YouTube link (playlist or song) — or search YouTube
 directly — and the tracks land straight in your WebTunes library. No files to
 manage: audio is downloaded, uploaded to WebTunes, and cleaned up.

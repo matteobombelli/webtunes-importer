@@ -3,7 +3,7 @@
 APP_NAME = "WebTunes Importer"
 APP_AUTHOR = "matteob"
 
-DEFAULT_SERVER_URL = "https://matteob.dev/projects/webtunes"
+DEFAULT_SERVER_URL = "https://webtunes.matteob.dev"
 
 DEFAULT_STRICTNESS = 0.7  # match-score floor; user-adjustable 0..1 via the UI slider
 DURATION_TOLERANCE = 15  # seconds
